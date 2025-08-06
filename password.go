@@ -1,16 +1,16 @@
-package types
+package doberman
 
 import (
 	"crypto/rand"
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math/big"
 	"regexp"
+	"strings"
 	"unicode/utf8"
 
-	"github.com/marcelofabianov/doberman/msg"
+	"github.com/marcelofabianov/fault"
 )
 
 const (
@@ -54,61 +54,67 @@ func NewPasswordValidator(config *PasswordConfig) *PasswordValidator {
 	return &PasswordValidator{config: config}
 }
 
-func (v *PasswordValidator) Generate() (Password, error) {
+func (v *PasswordValidator) Generate() (Password, *fault.Error) {
 	var result []rune
 	var allChars string
+
+	// Default to lowercase letters to prevent empty allChars
+	allChars = lowerChars
 
 	if v.config.RequireLower {
 		char, err := randomCharFromString(lowerChars)
 		if err != nil {
-			return "", err
+			return "", fault.Wrap(err, "failed to generate random character for lowercase", fault.WithCode(fault.Internal))
 		}
 		result = append(result, char)
-		allChars += lowerChars
+		if !strings.Contains(allChars, lowerChars) {
+			allChars += lowerChars
+		}
 	}
 	if v.config.RequireUpper {
 		char, err := randomCharFromString(upperChars)
 		if err != nil {
-			return "", err
+			return "", fault.Wrap(err, "failed to generate random character for uppercase", fault.WithCode(fault.Internal))
 		}
 		result = append(result, char)
-		allChars += upperChars
+		if !strings.Contains(allChars, upperChars) {
+			allChars += upperChars
+		}
 	}
 	if v.config.RequireNumber {
 		char, err := randomCharFromString(numberChars)
 		if err != nil {
-			return "", err
+			return "", fault.Wrap(err, "failed to generate random character for number", fault.WithCode(fault.Internal))
 		}
 		result = append(result, char)
-		allChars += numberChars
+		if !strings.Contains(allChars, numberChars) {
+			allChars += numberChars
+		}
 	}
 	if v.config.RequireSymbol {
 		char, err := randomCharFromString(symbolChars)
 		if err != nil {
-			return "", err
+			return "", fault.Wrap(err, "failed to generate random character for symbol", fault.WithCode(fault.Internal))
 		}
 		result = append(result, char)
-		allChars += symbolChars
+		if !strings.Contains(allChars, symbolChars) {
+			allChars += symbolChars
+		}
 	}
 
 	remainingLen := v.config.MinLength - len(result)
 	for i := 0; i < remainingLen; i++ {
 		char, err := randomCharFromString(allChars)
 		if err != nil {
-			return "", err
+			return "", fault.Wrap(err, "failed to generate random character for remainder", fault.WithCode(fault.Internal))
 		}
 		result = append(result, char)
-	}
-
-	_, err := io.ReadFull(rand.Reader, make([]byte, len(result)))
-	if err != nil {
-		return "", err
 	}
 
 	for i := len(result) - 1; i > 0; i-- {
 		jBig, err := rand.Int(rand.Reader, big.NewInt(int64(i+1)))
 		if err != nil {
-			return "", err
+			return "", fault.Wrap(err, "failed to shuffle password", fault.WithCode(fault.Internal))
 		}
 		j := jBig.Int64()
 		result[i], result[j] = result[j], result[i]
@@ -125,37 +131,51 @@ func randomCharFromString(s string) (rune, error) {
 	return rune(s[n.Int64()]), nil
 }
 
-func (v *PasswordValidator) Validate(passwordStr string) error {
+func (v *PasswordValidator) Validate(passwordStr string) *fault.Error {
 	if passwordStr == "" {
-		return msg.NewValidationError(nil, map[string]any{"field": "password"}, "Password cannot be empty.")
+		return fault.New("password cannot be empty",
+			fault.WithCode(fault.Invalid),
+			fault.WithContext("field", "password"),
+		)
 	}
 
 	passwordRuneLen := utf8.RuneCountInString(passwordStr)
 	if v.config.MinLength > 0 && passwordRuneLen < v.config.MinLength {
-		message := fmt.Sprintf("Password must be at least %d characters long.", v.config.MinLength)
-		return msg.NewValidationError(nil, map[string]any{"field": "password", "min_length": v.config.MinLength, "actual_length": passwordRuneLen}, message)
+		message := fmt.Sprintf("password must be at least %d characters long", v.config.MinLength)
+		return fault.New(message,
+			fault.WithCode(fault.Invalid),
+			fault.WithContext("min_length", v.config.MinLength),
+		)
 	}
 
 	if v.config.RequireNumber && !hasNumberRegex.MatchString(passwordStr) {
-		return msg.NewValidationError(nil, map[string]any{"field": "password", "rule_violation": "missing_numeric"}, "Password must contain at least one numeric character (0-9).")
+		return fault.New("password must contain at least one numeric character (0-9)",
+			fault.WithCode(fault.Invalid),
+		)
 	}
 
 	if v.config.RequireUpper && !hasUpperRegex.MatchString(passwordStr) {
-		return msg.NewValidationError(nil, map[string]any{"field": "password", "rule_violation": "missing_uppercase"}, "Password must contain at least one uppercase letter (A-Z).")
+		return fault.New("password must contain at least one uppercase letter (A-Z)",
+			fault.WithCode(fault.Invalid),
+		)
 	}
 
 	if v.config.RequireLower && !hasLowerRegex.MatchString(passwordStr) {
-		return msg.NewValidationError(nil, map[string]any{"field": "password", "rule_violation": "missing_lowercase"}, "Password must contain at least one lowercase letter (a-z).")
+		return fault.New("password must contain at least one lowercase letter (a-z)",
+			fault.WithCode(fault.Invalid),
+		)
 	}
 
 	if v.config.RequireSymbol && !hasSymbolRegex.MatchString(passwordStr) {
-		return msg.NewValidationError(nil, map[string]any{"field": "password", "rule_violation": "missing_symbol"}, "Password must contain at least one symbol.")
+		return fault.New("password must contain at least one symbol",
+			fault.WithCode(fault.Invalid),
+		)
 	}
 
 	return nil
 }
 
-func (v *PasswordValidator) NewPassword(passwordStr string) (Password, error) {
+func (v *PasswordValidator) NewPassword(passwordStr string) (Password, *fault.Error) {
 	if err := v.Validate(passwordStr); err != nil {
 		return "", err
 	}
@@ -164,7 +184,7 @@ func (v *PasswordValidator) NewPassword(passwordStr string) (Password, error) {
 
 var defaultValidator = NewPasswordValidator(DefaultPasswordConfig)
 
-func NewPassword(passwordStr string) (Password, error) {
+func NewPassword(passwordStr string) (Password, *fault.Error) {
 	return defaultValidator.NewPassword(passwordStr)
 }
 
@@ -193,25 +213,14 @@ func (p Password) MarshalJSON() ([]byte, error) {
 func (p *Password) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
-		return msg.NewMessageError(err, "Password must be a valid JSON string.", msg.CodeInvalid, nil)
+		return fault.New("password must be a valid JSON string",
+			fault.WithCode(fault.Invalid),
+			fault.WithWrappedErr(err),
+		)
 	}
-	newP, err := NewPassword(s)
-	if err != nil {
-		return err
-	}
-	*p = newP
-	return nil
-}
-
-func (p Password) MarshalText() ([]byte, error) {
-	return []byte(p.String()), nil
-}
-
-func (p *Password) UnmarshalText(text []byte) error {
-	s := string(text)
-	newP, err := NewPassword(s)
-	if err != nil {
-		return err
+	newP, faultErr := NewPassword(s)
+	if faultErr != nil {
+		return faultErr
 	}
 	*p = newP
 	return nil
@@ -236,8 +245,9 @@ func (p *Password) Scan(src interface{}) error {
 	case []byte:
 		passwordStr = string(sval)
 	default:
-		message := fmt.Sprintf("Incompatible type (%T) for Password scan.", src)
-		return msg.NewValidationError(nil, map[string]any{"received_type": fmt.Sprintf("%T", src)}, message)
+		return fault.New(fmt.Sprintf("incompatible type (%T) for password scan", src),
+			fault.WithCode(fault.Internal),
+		)
 	}
 	newP, err := NewPassword(passwordStr)
 	if err != nil {

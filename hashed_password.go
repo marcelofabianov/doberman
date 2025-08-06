@@ -1,9 +1,11 @@
-package types
+package doberman
 
 import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+
+	"github.com/marcelofabianov/fault"
 )
 
 type HashedPassword string
@@ -27,7 +29,10 @@ func (hp HashedPassword) MarshalJSON() ([]byte, error) {
 func (hp *HashedPassword) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
-		return err
+		return fault.Wrap(err,
+			"HashedPassword must be a valid JSON string",
+			fault.WithCode(fault.Invalid),
+		)
 	}
 	*hp = NewHashedPassword(s)
 	return nil
@@ -53,7 +58,9 @@ func (hp *HashedPassword) Scan(src interface{}) error {
 	case []byte:
 		hash = string(sval)
 	default:
-		return fmt.Errorf("incompatible type (%T) for HashedPassword scan", src)
+		return fault.New(fmt.Sprintf("incompatible type (%T) for HashedPassword scan", src),
+			fault.WithCode(fault.Internal),
+		)
 	}
 
 	*hp = NewHashedPassword(hash)
