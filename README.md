@@ -1,128 +1,207 @@
-# doberman 🐕‍🦺
+# Doberman
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/marcelofabianov/doberman)](https://goreportcard.com/report/github.com/marcelofabianov/doberman)
-[![Go Reference](https://pkg.go.dev/badge/github.com/marcelofabianov/doberman.svg)](https://pkg.go.dev/github.com/marcelofabianov/doberman)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+Doberman is a Go package for secure password generation, validation, and handling. It provides a customizable password validator, supports JSON serialization/deserialization, and integrates with SQL databases using the `database/sql` package.
 
-`doberman` é uma biblioteca Go completa e segura, projetada para gerenciar todo o ciclo de vida de senhas com elegância e precisão. Ele atua como um "cão de guarda" para a segurança da sua aplicação, garantindo que as senhas sejam validadas, geradas e armazenadas da forma mais segura possível.
+## Features
 
-## ✨ Principais Funcionalidades
+- Generate random passwords with customizable requirements (length, character types).
+- Validate passwords against configurable rules (minimum length, required numbers, uppercase, lowercase, symbols).
+- Securely handle passwords with JSON marshaling/unmarshaling.
+- Support for SQL database integration with `Scan` and `Value` methods.
+- Error handling using the `github.com/marcelofabianov/fault` package.
 
-* **Hashing Seguro:** Utiliza **Argon2id**, o algoritmo recomendado pela OWASP para hashing de senhas.
-* **Políticas de Senha Configuráveis:** Defina com facilidade as regras de complexidade (comprimento, caracteres obrigatórios, etc.) através do `PasswordValidator`.
-* **Geração de Senhas Seguras:** Crie senhas aleatórias e fortes que aderem automaticamente às políticas de validação que você definir.
-* **Segurança de Tipos (Type-Safety):** Usa tipos ricos como `types.Password` e `types.HashedPassword` para prevenir erros comuns de programação, como usar um hash como se fosse uma senha em texto plano.
-* **Erros Estruturados:** Integrado com o pacote [fault](https://github.com/marcelofabianov/fault), retorna erros ricos em contexto, facilitando a depuração e o tratamento de falhas na API.
-* **Design Desacoplado:** Baseado em interfaces (`PasswordHasher`) para facilitar os testes e futuras extensões.
+## Installation
 
-## 🚀 Instalação
+To use Doberman in your Go project, run:
 
 ```bash
-go get [github.com/marcelofabianov/doberman](https://github.com/marcelofabianov/doberman)
+go get github.com/marcelofabianov/doberman
 ```
 
-## 💡 Uso e Conceitos
+Ensure you have the `fault` package installed:
 
-O `doberman` é dividido em duas responsabilidades principais: validação/geração de senhas (`PasswordValidator`) e hashing/comparação (`PasswordHasher`).
+```bash
+go get github.com/marcelofabianov/fault
+```
 
-### 1. Validando Senhas
+## Usage
 
-Você pode usar o validador com as regras padrão ou criar o seu próprio.
+### Creating a Password Validator
+
+Create a `PasswordValidator` with default or custom configuration:
 
 ```go
-import "[github.com/marcelofabianov/doberman/types](https://github.com/marcelofabianov/doberman/types)"
+package main
 
-// Usando a política padrão (10+ chars, maiúscula, minúscula, número, símbolo)
-validatorPadrao := types.NewPasswordValidator(nil)
-_, err := validatorPadrao.NewPassword("SenhaFraca1")
-if err != nil {
-    // err será um *fault.Error com Code 'invalid_input'
-    fmt.Println(err)
-}
+import (
+    "fmt"
+    "github.com/marcelofabianov/doberman"
+)
 
-// Usando uma política customizada
-configSimples := &types.PasswordConfig{
-    MinLength:     8,
-    RequireNumber: true,
-}
-validatorSimples := types.NewPasswordValidator(configSimples)
-senhaValida, err := validatorSimples.NewPassword("senha123")
-if err == nil {
-    fmt.Println("Senha simples, porém válida para esta política!")
+func main() {
+    // Use default configuration (min length: 10, requires number, uppercase, lowercase, symbol)
+    validator := doberman.NewPasswordValidator(nil)
+
+    // Custom configuration
+    customConfig := &doberman.PasswordConfig{
+        MinLength:     12,
+        RequireNumber: true,
+        RequireUpper:  true,
+        RequireLower:  true,
+        RequireSymbol: false,
+    }
+    customValidator := doberman.NewPasswordValidator(customConfig)
 }
 ```
 
-### 2. Gerando Senhas Seguras
+### Generating a Password
 
-O mesmo `PasswordValidator` pode gerar senhas que cumprem suas próprias regras.
+Generate a random password that meets the validator's requirements:
 
 ```go
-// Gera uma senha que atende à política do 'validatorSimples'
-senhaGerada, err := validatorSimples.Generate()
+password, err := validator.Generate()
 if err != nil {
-    // Tratar erro raro de geração
+    fmt.Printf("Error generating password: %v\n", err)
+    return
 }
-
-fmt.Printf("Senha gerada: %s\n", senhaGerada)
+fmt.Printf("Generated password: %s\n", password.String())
 ```
 
-### 3. Hasheando e Comparando Senhas
+### Validating a Password
 
-O `PasswordHasher` cuida do armazenamento seguro.
+Validate a password against the configured rules:
+
+```go
+err := validator.Validate("MySecureP@ss1")
+if err != nil {
+    fmt.Printf("Validation failed: %v\n", err)
+} else {
+    fmt.Println("Password is valid")
+}
+```
+
+### Creating a Password
+
+Create a `Password` type with validation:
+
+```go
+password, err := doberman.NewPassword("MySecureP@ss1")
+if err != nil {
+    fmt.Printf("Invalid password: %v\n", err)
+    return
+}
+fmt.Printf("Created password: %s\n", password.String())
+```
+
+For panic-on-error behavior:
+
+```go
+password := doberman.MustNewPassword("MySecureP@ss1")
+fmt.Printf("Created password: %s\n", password.String())
+```
+
+### JSON Serialization
+
+Marshal and unmarshal passwords to/from JSON:
 
 ```go
 import (
-    "[github.com/marcelofabianov/doberman/hasher](https://github.com/marcelofabianov/doberman/hasher)"
-    "[github.com/marcelofabianov/doberman/types](https://github.com/marcelofabianov/doberman/types)"
+    "encoding/json"
+    "fmt"
+    "github.com/marcelofabianov/doberman"
 )
 
-// 1. Crie uma instância do hasher (usando a implementação Argon2id padrão)
-argonHasher := hasher.NewArgo2Hasher(nil)
+func main() {
+    password, _ := doberman.NewPassword("JSONP@ssw0rd1")
 
-// 2. Crie uma instância de senha válida
-senhaPlana, _ := types.NewPassword("StrongPassword123!")
+    // Marshal to JSON
+    jsonData, err := json.Marshal(password)
+    if err != nil {
+        fmt.Printf("Error marshaling: %v\n", err)
+        return
+    }
+    fmt.Printf("JSON: %s\n", jsonData)
 
-// 3. Gere o hash
-senhaHasheada, err := argonHasher.Hash(senhaPlana)
-if err != nil {
-    // Tratar erro de hash
-}
-
-// 4. Armazene 'senhaHasheada' no seu banco de dados
-fmt.Printf("Hash seguro para armazenar: %s\n", senhaHasheada)
-
-// 5. Em um fluxo de login, compare a tentativa com o hash armazenado
-match, err := argonHasher.Compare(senhaPlana, senhaHasheada)
-if err == nil && match {
-    fmt.Println("Login bem-sucedido!")
+    // Unmarshal from JSON
+    var unmarshaledPassword doberman.Password
+    err = json.Unmarshal(jsonData, &unmarshaledPassword)
+    if err != nil {
+        fmt.Printf("Error unmarshaling: %v\n", err)
+        return
+    }
+    fmt.Printf("Unmarshaled password: %s\n", unmarshaledPassword.String())
 }
 ```
 
-### Tratando Erros do Doberman
+### Database Integration
 
-O `doberman` retorna erros do tipo `*fault.Error`, o que permite um tratamento de erro robusto. Um caso de uso comum é verificar se a senha não corresponde.
+Use the `Password` type with SQL databases:
 
 ```go
-import "errors"
+import (
+    "database/sql"
+    "fmt"
+    "github.com/marcelofabianov/doberman"
+    _ "github.com/mattn/go-sqlite3"
+)
 
-// ... fluxo de login ...
-_, err := argonHasher.Compare(tentativaDeSenha, senhaHasheada)
-if err != nil {
-    // errors.Is funciona perfeitamente para checar o erro de mismatch
-    if errors.Is(err, hasher.ErrMismatch) {
-        fmt.Println("Credenciais inválidas.")
-        // Retornar um erro HTTP 401 Unauthorized
-    } else {
-        // Tratar outros erros (ex: hash corrompido, erro interno)
-        fmt.Println("Ocorreu um erro interno:", err)
+func main() {
+    db, err := sql.Open("sqlite3", ":memory:")
+    if err != nil {
+        fmt.Printf("Error opening database: %v\n", err)
+        return
     }
+    defer db.Close()
+
+    // Create table
+    _, err = db.Exec("CREATE TABLE users (id INTEGER PRIMARY KEY, password TEXT)")
+    if err != nil {
+        fmt.Printf("Error creating table: %v\n", err)
+        return
+    }
+
+    // Insert password
+    password, _ := doberman.NewPassword("DatabaseP@ss1")
+    _, err = db.Exec("INSERT INTO users (password) VALUES (?)", password)
+    if err != nil {
+        fmt.Printf("Error inserting: %v\n", err)
+        return
+    }
+
+    // Query password
+    var scannedPassword doberman.Password
+    err = db.QueryRow("SELECT password FROM users WHERE id = 1").Scan(&scannedPassword)
+    if err != nil {
+        fmt.Printf("Error querying: %v\n", err)
+        return
+    }
+    fmt.Printf("Scanned password: %s\n", scannedPassword.String())
 }
 ```
 
-## 🤝 Contribuições
+## Error Handling
 
-Contribuições são bem-vindas! Sinta-se à vontade para abrir uma *issue* para discutir novas funcionalidades ou reportar bugs.
+Doberman uses the `fault` package for structured error handling. Errors include a message, code, context, and wrapped errors:
 
-## 📄 Licença
+```go
+password, err := doberman.NewPassword("invalid")
+if err != nil {
+    fmt.Printf("Error: %s, Code: %s, Context: %v\n", err.Message, err.Code, err.Context)
+}
+```
 
-Este projeto é distribuído sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
+## Testing
+
+Run the tests to verify functionality:
+
+```bash
+go test -v ./...
+```
+
+## Contributing
+
+Contributions are welcome! Please submit issues or pull requests to the [GitHub repository](https://github.com/marcelofabianov/doberman).
+
+## License
+
+This project is licensed under the MIT License.
