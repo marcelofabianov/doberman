@@ -100,39 +100,6 @@ password := doberman.MustNewPassword("MySecureP@ss1")
 fmt.Printf("Created password: %s\n", password.String())
 ```
 
-### JSON Serialization
-
-Marshal and unmarshal passwords to/from JSON:
-
-```go
-import (
-    "encoding/json"
-    "fmt"
-    "github.com/marcelofabianov/doberman"
-)
-
-func main() {
-    password, _ := doberman.NewPassword("JSONP@ssw0rd1")
-
-    // Marshal to JSON
-    jsonData, err := json.Marshal(password)
-    if err != nil {
-        fmt.Printf("Error marshaling: %v\n", err)
-        return
-    }
-    fmt.Printf("JSON: %s\n", jsonData)
-
-    // Unmarshal from JSON
-    var unmarshaledPassword doberman.Password
-    err = json.Unmarshal(jsonData, &unmarshaledPassword)
-    if err != nil {
-        fmt.Printf("Error unmarshaling: %v\n", err)
-        return
-    }
-    fmt.Printf("Unmarshaled password: %s\n", unmarshaledPassword.String())
-}
-```
-
 ### Database Integration
 
 Use the `Password` type with SQL databases:
