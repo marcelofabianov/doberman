@@ -44,7 +44,7 @@ func NewPasswordValidator(config *PasswordConfig) *PasswordValidator {
 	return &PasswordValidator{config: config}
 }
 
-func (v *PasswordValidator) Validate(passwordStr string) *fault.Error {
+func (v *PasswordValidator) Validate(passwordStr string) error {
 	if passwordStr == "" {
 		return fault.New("password cannot be empty",
 			fault.WithCode(fault.Invalid),
@@ -87,7 +87,7 @@ func (v *PasswordValidator) Validate(passwordStr string) *fault.Error {
 	return nil
 }
 
-func (v *PasswordValidator) NewPassword(passwordStr string) (Password, *fault.Error) {
+func (v *PasswordValidator) NewPassword(passwordStr string) (Password, error) {
 	if err := v.Validate(passwordStr); err != nil {
 		return "", err
 	}
@@ -96,7 +96,7 @@ func (v *PasswordValidator) NewPassword(passwordStr string) (Password, *fault.Er
 
 var defaultValidator = NewPasswordValidator(DefaultPasswordConfig)
 
-func NewPassword(passwordStr string) (Password, *fault.Error) {
+func NewPassword(passwordStr string) (Password, error) {
 	return defaultValidator.NewPassword(passwordStr)
 }
 
