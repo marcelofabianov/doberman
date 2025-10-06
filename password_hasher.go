@@ -6,5 +6,5 @@ import (
 
 type PasswordHasher interface {
 	Hash(p Password) (HashedPassword, *fault.Error)
-	Compare(p Password, h HashedPassword) (bool, *fault.Error)
+	Compare(p Password, h HashedPassword) error
 }

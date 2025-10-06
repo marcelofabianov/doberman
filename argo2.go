@@ -138,10 +138,10 @@ func parseEncodedHash(encodedHash HashedPassword) (*decodedHash, *fault.Error) {
 	}, nil
 }
 
-func (h *Argo2Hasher) Compare(p Password, encodedHash HashedPassword) (bool, *fault.Error) {
+func (h *Argo2Hasher) Compare(p Password, encodedHash HashedPassword) error {
 	decoded, err := parseEncodedHash(encodedHash)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	comparisonHash := argon2.IDKey(
@@ -154,8 +154,8 @@ func (h *Argo2Hasher) Compare(p Password, encodedHash HashedPassword) (bool, *fa
 	)
 
 	if subtle.ConstantTimeCompare(decoded.hash, comparisonHash) == 1 {
-		return true, nil
+		return nil
 	}
 
-	return false, ErrMismatch
+	return ErrMismatch
 }

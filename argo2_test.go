@@ -4,17 +4,16 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/marcelofabianov/doberman"
 	"github.com/marcelofabianov/fault"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/marcelofabianov/doberman"
 )
 
 func TestArgo2Hasher_HashAndCompare(t *testing.T) {
-	hasher := doberman.NewArgo2Hasher(nil) // Use default config
+	hasher := doberman.NewArgo2Hasher(nil)
 	password, err := doberman.NewPassword("S3cureP@ssw0rd!")
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Test Hash
 	hashedPassword, faultErr := hasher.Hash(password)
@@ -23,25 +22,27 @@ func TestArgo2Hasher_HashAndCompare(t *testing.T) {
 	assert.Contains(t, hashedPassword.String(), "$argon2id$")
 
 	// Test Compare - Success
-	match, faultErr := hasher.Compare(password, hashedPassword)
-	require.Nil(t, faultErr)
-	assert.True(t, match)
+	err = hasher.Compare(password, hashedPassword)
+	require.NoError(t, err)
 
 	// Test Compare - Failure (wrong password)
 	wrongPassword, err := doberman.NewPassword("WrongP@ssw0rd!")
-	require.Nil(t, err)
+	require.NoError(t, err)
 
-	match, faultErr = hasher.Compare(wrongPassword, hashedPassword)
-	assert.False(t, match)
-	require.NotNil(t, faultErr)
-	assert.ErrorIs(t, faultErr, doberman.ErrMismatch)
-	assert.Equal(t, fault.Unauthorized, faultErr.Code)
+	err = hasher.Compare(wrongPassword, hashedPassword)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, doberman.ErrMismatch)
+
+	// Para verificar o código do erro, precisamos fazer o type assertion
+	fErr, ok := fault.AsFault(err)
+	require.True(t, ok)
+	assert.Equal(t, fault.Unauthorized, fErr.Code)
 }
 
 func TestArgo2Hasher_Compare_InvalidFormat(t *testing.T) {
 	hasher := doberman.NewArgo2Hasher(nil)
 	password, err := doberman.NewPassword("S3cureP@ssw0rd!")
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	testCases := []struct {
 		name          string
@@ -85,14 +86,17 @@ func TestArgo2Hasher_Compare_InvalidFormat(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			match, faultErr := hasher.Compare(password, tc.hashed)
-			assert.False(t, match)
-			require.NotNil(t, faultErr)
-			assert.Contains(t, faultErr.Message, tc.expectedMsg)
-			assert.Equal(t, tc.expectedCode, faultErr.Code)
+			err := hasher.Compare(password, tc.hashed)
+			require.Error(t, err)
+
+			fErr, ok := fault.AsFault(err)
+			require.True(t, ok, "error must be of type *fault.Error")
+
+			assert.Contains(t, fErr.Message, tc.expectedMsg)
+			assert.Equal(t, tc.expectedCode, fErr.Code)
 
 			if tc.assertVersion {
-				ctx := faultErr.Context
+				ctx := fErr.Context
 				require.NotNil(t, ctx)
 				assert.Contains(t, ctx, "expected_version")
 				assert.Contains(t, ctx, "actual_version")
@@ -111,7 +115,7 @@ func TestNewArgo2Hasher_WithCustomConfig(t *testing.T) {
 	}
 	hasher := doberman.NewArgo2Hasher(customConfig)
 	password, err := doberman.NewPassword("TestWithCustomC0nfig!")
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	hashed, faultErr := hasher.Hash(password)
 	require.Nil(t, faultErr)
@@ -119,7 +123,6 @@ func TestNewArgo2Hasher_WithCustomConfig(t *testing.T) {
 	expectedParams := fmt.Sprintf("m=%d,t=%d,p=%d", customConfig.Memory, customConfig.Time, customConfig.Parallelism)
 	assert.Contains(t, string(hashed), expectedParams)
 
-	match, faultErr := hasher.Compare(password, hashed)
-	require.Nil(t, faultErr)
-	assert.True(t, match)
+	err = hasher.Compare(password, hashed)
+	require.NoError(t, err)
 }
