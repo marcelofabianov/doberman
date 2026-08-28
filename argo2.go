@@ -40,7 +40,7 @@ func NewArgo2Hasher(config *Config) *Argo2Hasher {
 	return &Argo2Hasher{config: config}
 }
 
-func (h *Argo2Hasher) Hash(p Password) (HashedPassword, *fault.Error) {
+func (h *Argo2Hasher) Hash(p Password) (HashedPassword, error) {
 	salt := make([]byte, h.config.SaltLength)
 	if _, err := rand.Read(salt); err != nil {
 		return "", fault.Wrap(err,
@@ -80,7 +80,7 @@ type decodedHash struct {
 	hash   []byte
 }
 
-func parseEncodedHash(encodedHash HashedPassword) (*decodedHash, *fault.Error) {
+func parseEncodedHash(encodedHash HashedPassword) (*decodedHash, error) {
 	parts := strings.Split(encodedHash.String(), "$")
 	if len(parts) != 6 {
 		return nil, fault.New("invalid hash format",

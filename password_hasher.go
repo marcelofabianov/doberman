@@ -1,10 +1,6 @@
 package doberman
 
-import (
-	"github.com/marcelofabianov/fault"
-)
-
 type PasswordHasher interface {
-	Hash(p Password) (HashedPassword, *fault.Error)
+	Hash(p Password) (HashedPassword, error)
 	Compare(p Password, h HashedPassword) error
 }
