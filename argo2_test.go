@@ -16,8 +16,8 @@ func TestArgo2Hasher_HashAndCompare(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test Hash
-	hashedPassword, faultErr := hasher.Hash(password)
-	require.Nil(t, faultErr)
+	hashedPassword, err := hasher.Hash(password)
+	require.NoError(t, err)
 	assert.NotEmpty(t, hashedPassword)
 	assert.Contains(t, hashedPassword.String(), "$argon2id$")
 
@@ -117,8 +117,8 @@ func TestNewArgo2Hasher_WithCustomConfig(t *testing.T) {
 	password, err := doberman.NewPassword("TestWithCustomC0nfig!")
 	require.NoError(t, err)
 
-	hashed, faultErr := hasher.Hash(password)
-	require.Nil(t, faultErr)
+	hashed, err := hasher.Hash(password)
+	require.NoError(t, err)
 
 	expectedParams := fmt.Sprintf("m=%d,t=%d,p=%d", customConfig.Memory, customConfig.Time, customConfig.Parallelism)
 	assert.Contains(t, string(hashed), expectedParams)
